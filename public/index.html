@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mon Courrier Admin — comprenez vos lettres administratives</title>
+<link rel="icon" href="/icons/icon-192.png" />
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#3b52d6" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Courrier Admin" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#ffffff; --ink:#1f2430; --muted:#697086;
+    --line:#e6e9f2; --brand:#3b52d6; --brand-d:#2c3fb0;
+    --red:#dc2626; --amber:#d97706; --green:#0f9d58; --soft:#f0f3fb;
+    --shadow:0 6px 24px rgba(31,36,48,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+  header{background:linear-gradient(135deg,var(--brand),#5b6ee0);color:#fff;padding:22px 20px}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+  header .wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .logo{font-size:26px}
+  h1{font-size:20px;margin:0}
+  .tag{opacity:.9;font-size:13px;margin:2px 0 0}
+  .badge-proto{margin-left:auto;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);padding:4px 10px;border-radius:999px;font-size:12px}
+  main{max-width:1080px;margin:22px auto;padding:0 16px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:840px){main{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px}
+  .card h2{font-size:15px;margin:0 0 10px;letter-spacing:.2px}
+  label.small{font-size:13px;color:var(--muted)}
+  textarea{width:100%;min-height:230px;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:14px;font-family:inherit;resize:vertical;background:#fcfdff}
+  textarea:focus{outline:2px solid var(--brand);border-color:transparent}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .chip{border:1px solid var(--line);background:var(--soft);color:var(--brand-d);border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer;transition:.15s}
+  .chip:hover{background:#e5e9fb;border-color:#cdd5f5}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
+  button.primary{background:var(--brand);color:#fff;border:none;border-radius:10px;padding:12px 18px;font-size:15px;font-weight:600;cursor:pointer}
+  button.primary:hover{background:var(--brand-d)}
+  button.primary:disabled{opacity:.6;cursor:default}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:10px;display:flex;gap:8px;align-items:flex-start}
+  .photo-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;color:var(--brand-d);border-radius:10px;padding:10px 14px;font-size:14px;cursor:pointer}
+  .photo-btn:hover{border-color:var(--brand)}
+  .thumb{margin-top:10px;max-width:170px;border:1px solid var(--line);border-radius:8px;display:none}
+  .placeholder{color:var(--muted);text-align:center;padding:40px 10px}
+  .placeholder .big{font-size:40px}
+  /* Result */
+  .res-head{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .res-icon{font-size:30px}
+  .res-type{font-size:17px;font-weight:700}
+  .urg{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;margin-left:auto}
+  .urg.normale{background:#e7f6ee;color:var(--green)}
+  .urg.asurveiller{background:#fdf1de;color:var(--amber)}
+  .urg.urgente{background:#fde5e5;color:var(--red)}
+  .urg.arnaque{background:#fde5e5;color:var(--red)}
+  .block{border-top:1px solid var(--line);margin-top:14px;padding-top:14px}
+  .block h3{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 8px}
+  .summary{font-size:14.5px}
+  .alert{border-radius:10px;padding:12px 14px;font-size:14px}
+  .alert.red{background:#fdecec;border:1px solid #f6c9c9;color:#8f1d1d}
+  .alert.amber{background:#fdf4e3;border:1px solid #f2dcae;color:#8a5a12}
+  .alert.green{background:#e9f7ef;border:1px solid #bfe6cd;color:#116b3e}
+  ul.clean{list-style:none;margin:0;padding:0}
+  ul.clean li{display:flex;gap:9px;padding:6px 0;font-size:14px;border-bottom:1px dashed var(--line)}
+  ul.clean li:last-child{border-bottom:none}
+  .dl{display:flex;align-items:center;gap:10px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  .dl .date{font-weight:700;color:var(--brand-d)}
+  .dl .lbl{font-size:13px;color:var(--muted)}
+  .dl button{margin-left:auto;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12.5px;cursor:pointer;color:var(--brand-d)}
+  .dl button:hover{border-color:var(--brand)}
+  .reply{position:relative}
+  .reply textarea{min-height:150px;background:#fbfcff}
+  .copy{position:absolute;top:8px;right:8px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12.5px;cursor:pointer}
+  footer{max-width:1080px;margin:6px auto 40px;padding:0 16px;color:var(--muted);font-size:12.5px;text-align:center}
+  .amount{display:inline-block;background:#eef1fc;color:var(--brand-d);border-radius:8px;padding:2px 8px;font-weight:600}
+  .tabs{display:flex;gap:14px;margin:16px auto 0}
+  .tab{background:transparent;border:none;border-bottom:2px solid transparent;padding:10px 4px;font-size:15px;color:var(--muted);cursor:pointer}
+  .tab.active{color:var(--brand-d);border-bottom-color:var(--brand);font-weight:600}
+  .count{background:var(--red);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px;margin-left:4px;display:none}
+  .dossiers{margin:18px auto 40px}
+  .d-card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
+  .d-item{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px dashed var(--line)}
+  .d-item:last-child{border-bottom:none}
+  .d-date{font-weight:700;color:var(--brand-d);min-width:92px}
+  .d-del{margin-left:auto;background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 9px;font-size:12px;cursor:pointer;color:var(--red)}
+  .btn-ghost{display:inline-block;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 13px;font-size:13.5px;color:var(--brand-d);text-decoration:none;cursor:pointer}
+  .save-btn{margin-top:14px;background:#eef1fc;color:var(--brand-d);border:1px solid #d7ddf7;border-radius:10px;padding:10px 14px;font-size:14px;cursor:pointer}
+  .ad{margin-top:16px;border:1px solid #e3e7f4;border-radius:12px;background:linear-gradient(180deg,#fbfcff,#f4f6fd);padding:14px}
+  .ad-tag{display:inline-block;font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:#8890a8;border:1px solid #dfe3f0;border-radius:6px;padding:1px 6px;margin-bottom:8px}
+  .ad-title{font-weight:700;font-size:14.5px;margin:0 0 4px}
+  .ad-text{font-size:13.5px;color:#444b5e;margin:0 0 10px}
+  .ad-cta{display:inline-block;background:var(--brand);color:#fff;text-decoration:none;border-radius:9px;padding:8px 14px;font-size:13.5px;font-weight:600}
+  .ad-cta:hover{background:var(--brand-d)}
+  .ad-disc{display:block;margin-top:9px;font-size:11px;color:#98a0b5}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="logo">📮</div>
+    <div>
+      <h1>Mon Courrier Admin</h1>
+      <div class="tag">Photographiez ou collez une lettre administrative : on vous l'explique, on repère les échéances et on rédige la réponse.</div>
+    </div>
+    <div class="badge-proto">Prototype</div>
+  </div>
+</header>
+
+<nav class="tabs wrap">
+  <button class="tab active" id="tab-analyze">Analyser</button>
+  <button class="tab" id="tab-dossiers">Mes dossiers <span id="remCount" class="count"></span></button>
+</nav>
+
+<main id="view-analyze">
+  <section class="card">
+    <h2>1. Votre courrier</h2>
+    <label class="small" for="txt">Collez le texte de la lettre (ou choisissez un exemple)</label>
+    <div class="chips" id="chips"></div>
+    <textarea id="txt" placeholder="Ex : Direction générale des Finances publiques… Objet : solde d'impôt restant dû…"></textarea>
+    <div class="row">
+      <button class="primary" id="go">Analyser le courrier</button>
+      <span class="small" id="status"></span>
+    </div>
+    <div class="row">
+      <label class="photo-btn">📷 Importer une photo
+        <input type="file" id="photo" accept="image/*" capture="environment" hidden>
+      </label>
+      <span class="small" id="ocrStatus"></span>
+    </div>
+    <img id="thumb" class="thumb" alt="aperçu de la photo">
+    <div class="hint">🔒 <span>La photo est transcrite <strong>en local</strong> (OCR), puis analysée — rien n'est envoyé sur Internet.</span></div>
+  </section>
+
+  <section class="card" id="result">
+    <div class="placeholder">
+      <div class="big">🔎</div>
+      <p>Le résultat de l'analyse s'affichera ici :<br>type de courrier, résumé en français simple, échéances, actions et brouillon de réponse.</p>
+    </div>
+  </section>
+</main>
+
+<section id="view-dossiers" class="wrap dossiers" style="display:none">
+  <div class="d-card">
+    <h2 style="margin:0 0 10px;font-size:16px">Échéances à venir</h2>
+    <div id="remList"><span class="small">Chargement…</span></div>
+    <div style="margin-top:14px"><a class="btn-ghost" href="/api/calendar.ics">📅 Exporter toutes les échéances (.ics)</a></div>
+  </div>
+  <div class="d-card">
+    <h2 style="margin:0 0 10px;font-size:16px">Historique des courriers</h2>
+    <div id="histList"><span class="small">Chargement…</span></div>
+  </div>
+</section>
+
+<footer>
+  Moteur : heuristique (démo) — branchement IA prêt • Données traitées localement dans ce prototype • Hébergement France/UE visé en production.<br>
+  Prototype fourni à titre indicatif — ne constitue pas un conseil juridique ou fiscal.
+</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+
+async function loadSamples(){
+  try{
+    const r = await fetch('/api/samples'); const list = await r.json();
+    const c = $('#chips'); c.innerHTML='';
+    list.forEach(s=>{
+      const b=document.createElement('button'); b.className='chip'; b.textContent=s.label;
+      b.onclick=async()=>{ const rr=await fetch('/api/sample/'+encodeURIComponent(s.id)); const d=await rr.json(); $('#txt').value=d.text; };
+      c.appendChild(b);
+    });
+  }catch(e){}
+}
+
+function urgClass(u){
+  if(u==='arnaque') return 'arnaque';
+  if(u==='urgente') return 'urgente';
+  if(u==='a surveiller') return 'asurveiller';
+  return 'normale';
+}
+function urgLabel(u){
+  if(u==='arnaque') return '⚠️ Arnaque probable';
+  if(u==='urgente') return '⏰ Urgent';
+  if(u==='a surveiller') return '📌 À surveiller';
+  return '✅ Sans urgence';
+}
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function scamBlock(scam){
+  if(scam.isScam || scam.score>=45){
+    return '<div class="block"><div class="alert red"><strong>⚠️ Signes d\'arnaque détectés ('+scam.score+'/100)</strong><ul class="clean">'+
+      scam.reasons.map(r=>'<li>• '+esc(r)+'</li>').join('')+'</ul></div></div>';
+  }
+  if(scam.score>=25){
+    return '<div class="block"><div class="alert amber"><strong>Prudence</strong> — quelques éléments à vérifier : '+
+      esc(scam.reasons.join(' ; '))+'</div></div>';
+  }
+  return '<div class="block"><div class="alert green">✅ Aucun signe d\'arnaque détecté.</div></div>';
+}
+
+function icsFor(dateStr,label,type){
+  const p=dateStr.split('/'); const dt=p[2]+p[1]+p[0];
+  const stamp=new Date().toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
+  return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Mon Courrier Admin//FR','BEGIN:VEVENT',
+    'UID:'+Date.now()+'@courrier-admin','DTSTAMP:'+stamp,'DTSTART;VALUE=DATE:'+dt,
+    'SUMMARY:Échéance — '+label+' ('+type+')','DESCRIPTION:Rappel généré par Mon Courrier Admin',
+    'BEGIN:VALARM','TRIGGER:-P2D','ACTION:DISPLAY','DESCRIPTION:Rappel échéance','END:VALARM',
+    'END:VEVENT','END:VCALENDAR'].join('\r\n');
+}
+function download(name,content){
+  const b=new Blob([content],{type:'text/calendar'}); const u=URL.createObjectURL(b);
+  const a=document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u);
+}
+
+function render(r){
+  let deadlines='';
+  if(r.deadlines.length){
+    deadlines = r.deadlines.map((d,i)=>
+      '<div class="dl"><span class="date">'+d.date+'</span><span class="lbl">'+esc(d.label)+'</span>'+
+      '<button data-i="'+i+'">＋ Agenda</button></div>').join('');
+  } else {
+    deadlines = '<span class="small">Aucune échéance détectée.</span>';
+  }
+  const amount = r.amount ? '<div class="block"><h3>Montant</h3><span class="amount">'+esc(r.amount)+'</span></div>' : '';
+  const actions = '<ul class="clean">'+r.actions.map(a=>'<li>☐ '+esc(a)+'</li>').join('')+'</ul>';
+  const ad = r.ad ? '<div class="ad"><span class="ad-tag">'+esc(r.ad.tag||'Annonce')+'</span>'+
+    '<p class="ad-title">'+esc(r.ad.title)+'</p><p class="ad-text">'+esc(r.ad.text)+'</p>'+
+    '<a class="ad-cta" href="/api/go/'+encodeURIComponent(r.ad.id)+'" target="_blank" rel="noopener nofollow sponsored">'+esc(r.ad.cta)+'</a>'+
+    '<span class="ad-disc">'+esc(r.ad.disclosure||'')+'</span></div>' : '';
+
+  $('#result').innerHTML =
+    '<div class="res-head"><div class="res-icon">'+r.icon+'</div><div class="res-type">'+esc(r.type)+'</div>'+
+      '<span class="urg '+urgClass(r.urgency)+'">'+urgLabel(r.urgency)+'</span></div>'+
+    scamBlock(r.scam)+
+    '<div class="block"><h3>En clair</h3><div class="summary">'+esc(r.summary)+'</div></div>'+
+    amount+
+    '<div class="block"><h3>Échéances</h3>'+deadlines+'</div>'+
+    '<div class="block"><h3>Que faire</h3>'+actions+'</div>'+
+    '<div class="block"><h3>Brouillon de réponse</h3><div class="reply">'+
+      '<button class="copy" id="cpy">Copier</button>'+
+      '<textarea id="reply" readonly>'+esc(r.draftReply)+'</textarea></div></div>'+
+    '<div style="margin-top:12px;font-size:12px;color:var(--muted)">🔧 '+esc(r.engine||'')+'</div>'+
+    '<button class="save-btn" id="save">💾 Enregistrer dans mes dossiers</button>'+
+    ad;
+
+  // wire agenda buttons
+  document.querySelectorAll('.dl button').forEach(btn=>{
+    btn.onclick=()=>{ const d=r.deadlines[+btn.dataset.i]; download('echeance.ics', icsFor(d.date,d.label,r.type)); };
+  });
+  const cpy=$('#cpy'); if(cpy){ cpy.onclick=()=>{ navigator.clipboard.writeText(r.draftReply); cpy.textContent='Copié ✓'; setTimeout(()=>cpy.textContent='Copier',1500); }; }
+  const sv=$('#save'); if(sv){ sv.onclick=async()=>{ sv.disabled=true; try{ await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:window._lastText||'',result:r})}); sv.textContent='Enregistré ✓'; updateRemCount(); }catch(e){ sv.textContent='Erreur'; sv.disabled=false; } }; }
+}
+
+async function analyze(){
+  const text=$('#txt').value.trim();
+  if(!text){ $('#status').textContent='Collez d\'abord un courrier ou choisissez un exemple.'; return; }
+  const go=$('#go'); go.disabled=true; const old=go.textContent; go.textContent='Analyse…'; $('#status').textContent='L\'IA locale analyse… (quelques secondes)';
+  try{
+    const r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    const data=await r.json();
+    if(data.error){ $('#status').textContent=data.error; }
+    else { window._lastText=text; render(data); $('#status').textContent=''; }
+  }catch(e){ $('#status').textContent='Erreur : '+e; }
+  finally{ go.disabled=false; go.textContent=old; }
+}
+
+$('#go').onclick=analyze;
+
+const photo=$('#photo');
+if(photo){ photo.onchange=async()=>{
+  const f=photo.files && photo.files[0]; if(!f) return;
+  const b64=await new Promise((res,rej)=>{const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(f);});
+  const th=$('#thumb'); th.src=b64; th.style.display='block';
+  $('#ocrStatus').textContent='Transcription locale de la photo… (peut prendre un moment)';
+  try{
+    const rr=await fetch('/api/ocr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:b64})});
+    const d=await rr.json();
+    if(d.error){ $('#ocrStatus').textContent=d.error; return; }
+    $('#txt').value=d.text||'';
+    $('#ocrStatus').textContent='Texte extrait ✓ — lancement de l\'analyse…';
+    analyze();
+  }catch(e){ $('#ocrStatus').textContent='Erreur OCR : '+e; }
+};}
+
+loadSamples();
+updateRemCount();
+
+function showView(which){
+  document.getElementById('view-analyze').style.display = which==='dossiers'?'none':'';
+  document.getElementById('view-dossiers').style.display = which==='dossiers'?'':'none';
+  $('#tab-analyze').classList.toggle('active', which!=='dossiers');
+  $('#tab-dossiers').classList.toggle('active', which==='dossiers');
+  if(which==='dossiers') loadDossiers();
+}
+$('#tab-analyze').onclick=()=>showView('analyze');
+$('#tab-dossiers').onclick=()=>showView('dossiers');
+
+async function updateRemCount(){
+  try{ const rem=await (await fetch('/api/reminders')).json(); const c=$('#remCount'); if(rem.length){ c.textContent=rem.length; c.style.display='inline-block'; } else { c.style.display='none'; } }catch(e){}
+}
+async function loadDossiers(){
+  try{
+    const rem=await (await fetch('/api/reminders')).json();
+    $('#remList').innerHTML = rem.length ? rem.map(x=>'<div class="d-item"><span class="d-date">'+x.date+'</span><span>'+esc(x.label)+' <span class="small">— '+esc(x.type)+'</span></span></div>').join('') : '<span class="small">Aucune échéance à venir.</span>';
+    const hist=await (await fetch('/api/history')).json();
+    const hl=$('#histList');
+    hl.innerHTML = hist.length ? hist.map(h=>'<div class="d-item"><span class="d-date">'+new Date(h.savedAt).toLocaleDateString('fr-FR')+'</span><span><strong>'+esc(h.type)+'</strong><br><span class="small">'+esc((h.summary||'').slice(0,130))+'</span></span><button class="d-del" data-id="'+h.id+'">Suppr.</button></div>').join('') : '<span class="small">Aucun courrier enregistré.</span>';
+    hl.querySelectorAll('.d-del').forEach(b=>b.onclick=async()=>{ await fetch('/api/item/'+encodeURIComponent(b.dataset.id),{method:'DELETE'}); loadDossiers(); updateRemCount(); });
+  }catch(e){}
+}
+
+if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{})); }
+</script>
+</body>
+</html>
