@@ -18,6 +18,7 @@ const LLM_PROVIDER = process.env.LLM_PROVIDER || "ollama";
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const OCR_CLEANUP = process.env.OCR_CLEANUP !== "0";
+const OCR_ENABLED = process.env.OCR_DISABLED !== "1";
 const ENGINE = LLM_PROVIDER === "openai"
   ? ("IA cloud (" + OPENAI_MODEL + ")")
   : ("IA locale (Ollama: " + OLLAMA_MODEL + ")");
@@ -202,8 +203,65 @@ async function openaiAnalyze(text) {
   }
 }
 
-// --- OCR local : transcription d'une photo de courrier via un modele de vision Ollama ---
+// --- OCR via Google Cloud Vision (free tier: 100/month) ou Ollama local ---
+const GOOGLE_VISION_ENABLED = process.env.GOOGLE_VISION_ENABLED === "1";
+const GOOGLE_VISION_KEY_B64 = process.env.GOOGLE_VISION_KEY || "";
+let GOOGLE_VISION_KEY = null;
+if (GOOGLE_VISION_ENABLED && GOOGLE_VISION_KEY_B64) {
+  try {
+    GOOGLE_VISION_KEY = JSON.parse(Buffer.from(GOOGLE_VISION_KEY_B64, "base64").toString("utf8"));
+  } catch (e) {
+    console.warn("Google Vision: invalid key format");
+  }
+}
+
+async function ocrImageGoogle(b64) {
+  if (!GOOGLE_VISION_KEY) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const r = await fetch("https://vision.googleapis.com/v1/images:annotate?key=" + GOOGLE_VISION_KEY.project_id, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requests: [{
+          image: { content: b64 },
+          features: [{ type: "TEXT_DETECTION" }]
+        }]
+      }),
+      signal: controller.signal
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const annotations = data.responses && data.responses[0] && data.responses[0].textAnnotations;
+    if (!annotations || annotations.length === 0) return null;
+    return annotations[0].description || null;
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function ocrImage(b64) {
+  let result = null;
+  
+  // Try Google Vision first (free cloud, fastest)
+  if (GOOGLE_VISION_ENABLED && GOOGLE_VISION_KEY) {
+    result = await ocrImageGoogle(b64);
+    if (result) return result;
+  }
+  
+  // Fall back to Ollama local (if available)
+  if (USE_OLLAMA) {
+    result = await ocrImageOllama(b64);
+    if (result) return result;
+  }
+  
+  return null;
+}
+
+async function ocrImageOllama(b64) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 180000);
   try {
@@ -302,6 +360,9 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && (url === "/" || url === "/index.html")) {
       return sendFile(res, path.join(PUBLIC, "index.html"));
     }
+    if (req.method === "GET" && url === "/api/config") {
+      return json(res, 200, { ocrEnabled: OCR_ENABLED, llmProvider: LLM_PROVIDER, engine: ENGINE });
+    }
     if (req.method === "GET" && url === "/api/samples") {
       return json(res, 200, samples.map(s => ({ id: s.id, label: s.label })));
     }
@@ -319,7 +380,7 @@ const server = http.createServer(async (req, res) => {
       if (marker >= 0) img = img.slice(marker + 7);
       if (!img) return json(res, 400, { error: "Aucune image fournie" });
       const raw = await ocrImage(img);
-      if (!raw) return json(res, 502, { error: "OCR indisponible (le modele de vision est-il pret ?)" });
+      if (!raw) return json(res, 502, { error: "OCR indisponible. Configurez Google Vision API ou Ollama pour activer la reconnaissance de photos." });
       const text = OCR_CLEANUP ? await ocrCleanup(raw) : raw;
       return json(res, 200, { text, raw });
     }
