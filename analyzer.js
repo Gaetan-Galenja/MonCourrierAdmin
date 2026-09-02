@@ -38,32 +38,77 @@ function detectType(t) {
 }
 
 // --- Detection d'arnaque (hameconnage) ---
-const OFFICIAL_DOMAINS = ["impots.gouv.fr", "service-public.fr", "ameli.fr", "urssaf.fr", "caf.fr", "gouv.fr", "laposte.fr"];
+const OFFICIAL_DOMAINS = ["impots.gouv.fr", "service-public.fr", "ameli.fr", "urssaf.fr", "caf.fr", "gouv.fr", "laposte.fr", "sncf.fr", "orange.fr", "sfr.fr", "bouyguestelecom.fr"];
 
 function detectScam(raw) {
   const reasons = [];
   let score = 0;
   const urls = raw.match(/https?:\/\/[^\s)]+/gi) || [];
-  const suspiciousTld = /\.(xyz|top|info|click|ru|cn|tk|gq|ml|buzz|online|site|link)\b/i;
+  const suspiciousTld = /\.(xyz|top|info|click|ru|cn|tk|gq|ml|buzz|online|site|link|cf|ga|lol|download|review|store|stream|download|world|space)\b/i;
+  
+  // Detect suspicious domain mimicking
+  const domainMimics = [
+    [/impots?[\-\.]gouv[\-\.]fr/i, 40, "Faux domaine Impots (mimicry)"],
+    [/ameli?[\-\.]fr/i, 35, "Faux domaine Ameli (mimicry)"],
+    [/urssaf?[\-\.]fr/i, 35, "Faux domaine URSSAF (mimicry)"],
+    [/caf?[\-\.]fr/i, 35, "Faux domaine CAF (mimicry)"],
+    [/sncf?[\-\.]fr/i, 30, "Faux domaine SNCF (mimicry)"]
+  ];
+  
   for (const u of urls) {
     const isOfficial = OFFICIAL_DOMAINS.some(d => u.toLowerCase().includes(d));
-    if (!isOfficial) { score += 25; reasons.push("Lien vers un site non officiel : " + u); }
-    if (suspiciousTld.test(u)) { score += 15; reasons.push("Nom de domaine douteux"); }
+    if (!isOfficial) { 
+      score += 20; 
+      reasons.push("Lien vers un site non officiel : " + u); 
+    }
+    if (suspiciousTld.test(u)) { 
+      score += 20; 
+      reasons.push("Nom de domaine douteux (.xyz, .top, .click...)"); 
+    }
+    for (const [pattern, pts, label] of domainMimics) {
+      if (pattern.test(u)) { score += pts; reasons.push(label); }
+    }
   }
+  
   const patterns = [
-    [/cliquez\s+(ici|sur\s+le\s+lien)/i, 20, "Incitation a cliquer sur un lien"],
-    [/(coordonnees|coordonnées|informations)\s+bancaires/i, 25, "Demande de coordonnees bancaires"],
-    [/(carte\s+bancaire|numero\s+de\s+carte|numéro\s+de\s+carte|cryptogramme)/i, 30, "Demande de donnees de carte bancaire"],
-    [/colis/i, 15, "Theme \u00AB colis \u00BB frequent dans les arnaques"],
-    [/remboursement\s+de\s+\d/i, 12, "Promesse de remboursement"],
-    [/(cpf|compte\s+personnel\s+de\s+formation)/i, 20, "Theme CPF (arnaque courante)"],
-    [/(suspendu|suspension|bloque|bloqué|activite\s+suspecte|activité\s+suspecte)/i, 10, "Ton alarmiste / menace de suspension"],
-    [/sous\s+(24|48)\s*h/i, 15, "Urgence artificielle (24/48h)"],
-    [/mettre\s+a\s+jour\s+vos\s+(informations|coordonnees|coordonnées)/i, 18, "Demande de mise a jour de vos informations"]
+    // Demandes bancaires (très suspect)
+    [/(coordonnees|coordonnées|informations|donnees|données)\s+bancaires/i, 30, "Demande de coordonnees bancaires"],
+    [/(carte\s+bancaire|numero\s+de\s+carte|numéro\s+de\s+carte|cryptogramme|cvv|code\s+securite|code\s+sécurité)/i, 35, "Demande de donnees de carte bancaire"],
+    [/(iban|bic|compte\s+courant)/i, 25, "Demande d'identifiants bancaires"],
+    
+    // Liens suspects
+    [/cliquez\s+(ici|sur\s+le\s+lien|ce\s+lien)/i, 15, "Incitation a cliquer sur un lien"],
+    [/\.com\s+$|\.cc\s+$|\.ru\s+$|\.cn\s+$/i, 25, "Lien externe suspect"],
+    
+    // Themes arnaques courantes FR
+    [/colis\s+(non\s+livre|non\s+livré|rejet|bloque|bloqué)/i, 25, "Faux avis de colis non livre"],
+    [/(cpf|compte\s+personnel\s+de\s+formation|formation\s+gratuite)/i, 20, "Theme CPF (arnaque courante)"],
+    [/(prime|bonus|remboursement)\s+(gouvernement|etat|état)/i, 20, "Fausse aide gouvernementale"],
+    
+    // Urgence/menaces
+    [/(suspendu|suspension|bloque|bloqué|activite\s+suspecte|activité\s+suspecte|restriction|desactiv)/i, 15, "Ton alarmiste / menace de suspension"],
+    [/(sous|dans|delai\s+de)\s+(24|48|6)\s*h/i, 18, "Urgence artificielle (24/48h)"],
+    [/(immediate|immédiate|urgent|asap|critical)/i, 12, "Ton d'urgence suspect"],
+    
+    // Mise a jour
+    [/mettre\s+a\s+jour\s+vos\s+(informations|coordonnees|coordonnées|profile|profil)/i, 18, "Demande de mise a jour de donnees"],
+    
+    // Remboursement/paiement
+    [/remboursement\s+de\s+\d+\s*(€|euros?|eur)/i, 15, "Promesse de remboursement"],
+    [/(frais|taxe|douane)\s+(a\s+payer|à\s+payer|impayee|impayée)/i, 20, "Faux frais a payer"],
+    
+    // Verifications identité
+    [/(verifier|vérifier|confirmer)\s+vos\s+(identifiant|mot\s+de\s+passe|password|login)/i, 25, "Demande de verification d'identite"],
+    [/(nous\s+confirmer|valider|reconfirmer)\s+vos\s+(donnees|données)/i, 22, "Demande de confirmation de donnees"],
+    
+    // Absence d'adresse email officielle
+    [/via\s+sms|par\s+sms|appel\s+a\s+un\s+numero/i, 20, "Communication par SMS (pas officiel)"]
   ];
+  
   for (const [re, pts, label] of patterns) {
     if (re.test(raw)) { score += pts; reasons.push(label); }
   }
+  
   score = Math.min(100, score);
   return { isScam: score >= 45, score, reasons };
 }
