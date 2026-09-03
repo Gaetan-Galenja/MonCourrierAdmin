@@ -255,40 +255,79 @@ async function ocrImage(b64) {
 
 async function ocrImagePaddle(b64) {
   return new Promise((resolve) => {
-    const timeout = setTimeout(() => { resolve(null); }, 120000);
+    const timeout = setTimeout(() => { 
+      console.log("[OCR] PaddleOCR timeout");
+      resolve(null); 
+    }, 120000);
+    
     try {
-      const python = spawn("python3", ["-c", `
-import sys, base64, json
-sys.path.insert(0, '.')
+      // Write the image to a temp file first (more reliable than stdin)
+      const tmpFile = path.join(DATA_DIR, "ocr_" + Date.now() + ".jpg");
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+      
+      const imgBuffer = Buffer.from(b64, "base64");
+      fs.writeFileSync(tmpFile, imgBuffer);
+      
+      // Use a separate Python file for better error handling
+      const pythonScript = `
+import sys
 try:
-  from paddleocr import PaddleOCR
-  from PIL import Image
-  import io
-  ocr = PaddleOCR(use_angle_cls=True, lang='ch')
-  img_data = base64.b64decode(sys.argv[1])
-  img = Image.open(io.BytesIO(img_data))
-  result = ocr.ocr(img, cls=True)
-  text = '\\n'.join([line[0][1] for line in result if line])
-  print(text)
+    from paddleocr import PaddleOCR
+    from PIL import Image
+    img_path = sys.argv[1]
+    ocr = PaddleOCR(use_angle_cls=True, lang='ch')
+    result = ocr.ocr(img_path, cls=True)
+    if result and len(result) > 0:
+        text = '\\n'.join([line[0][1] for line in result[0] if line])
+        print(text)
+        sys.exit(0)
+    else:
+        sys.exit(1)
 except Exception as e:
-  print('', file=sys.stderr)
-  sys.exit(1)
-`, b64], { timeout: 120000, stdio: ["pipe", "pipe", "pipe"] });
+    print(str(e), file=sys.stderr)
+    sys.exit(1)
+`;
+      
+      const python = spawn("python3", ["-c", pythonScript, tmpFile], { 
+        timeout: 120000,
+        stdio: ["pipe", "pipe", "pipe"],
+        shell: false
+      });
       
       let output = "";
       let error = "";
-      python.stdout.on("data", (data) => { output += data.toString(); });
-      python.stderr.on("data", (data) => { error += data.toString(); });
+      
+      python.stdout.on("data", (data) => { 
+        output += data.toString(); 
+      });
+      
+      python.stderr.on("data", (data) => { 
+        error += data.toString();
+        console.log("[OCR] Python error:", error);
+      });
+      
       python.on("close", (code) => {
         clearTimeout(timeout);
-        resolve(code === 0 && output.trim() ? output.trim() : null);
+        try { fs.unlinkSync(tmpFile); } catch (e) {}
+        
+        if (code === 0 && output.trim()) {
+          console.log("[OCR] PaddleOCR success");
+          resolve(output.trim());
+        } else {
+          console.log("[OCR] PaddleOCR failed (code=" + code + ")");
+          resolve(null);
+        }
       });
-      python.on("error", () => {
+      
+      python.on("error", (err) => {
         clearTimeout(timeout);
+        try { fs.unlinkSync(tmpFile); } catch (e) {}
+        console.log("[OCR] Python spawn error:", err.message);
         resolve(null);
       });
     } catch (e) {
       clearTimeout(timeout);
+      console.log("[OCR] Exception:", e.message);
       resolve(null);
     }
   });
@@ -405,6 +444,7 @@ const server = http.createServer(async (req, res) => {
       return s ? json(res, 200, { text: s.text }) : json(res, 404, { error: "not found" });
     }
     if (req.method === "POST" && url === "/api/ocr") {
+      console.log("[OCR] Request received, USE_PADDLE_OCR=" + USE_PADDLE_OCR + ", USE_OLLAMA=" + USE_OLLAMA);
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || "{}"); } catch (e) {}
@@ -412,8 +452,13 @@ const server = http.createServer(async (req, res) => {
       const marker = img.indexOf("base64,");
       if (marker >= 0) img = img.slice(marker + 7);
       if (!img) return json(res, 400, { error: "Aucune image fournie" });
+      console.log("[OCR] Image received, size: " + img.length + " chars");
       const raw = await ocrImage(img);
-      if (!raw) return json(res, 502, { error: "OCR indisponible. Configurez Google Vision API ou Ollama pour activer la reconnaissance de photos." });
+      if (!raw) {
+        console.log("[OCR] All methods failed");
+        return json(res, 502, { error: "OCR indisponible. Vérifiez les logs du serveur." });
+      }
+      console.log("[OCR] Success, text length: " + raw.length);
       const text = OCR_CLEANUP ? await ocrCleanup(raw) : raw;
       return json(res, 200, { text, raw });
     }
@@ -504,4 +549,10 @@ const server = http.createServer(async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5173;
-server.listen(PORT, () => console.log("Mon Courrier Admin (prototype) -> http://localhost:" + PORT));
+server.listen(PORT, () => {
+  console.log("Mon Courrier Admin (prototype) -> http://localhost:" + PORT);
+  console.log("[CONFIG] LLM_PROVIDER=" + LLM_PROVIDER);
+  console.log("[CONFIG] USE_PADDLE_OCR=" + USE_PADDLE_OCR);
+  console.log("[CONFIG] USE_OLLAMA=" + USE_OLLAMA);
+  console.log("[CONFIG] Engine: " + ENGINE);
+});
