@@ -203,17 +203,9 @@ async function openaiAnalyze(text) {
   }
 }
 
-// --- OCR via Google Cloud Vision (free tier: 100/month) ou Ollama local ---
-const GOOGLE_VISION_ENABLED = process.env.GOOGLE_VISION_ENABLED === "1";
-const GOOGLE_VISION_KEY_B64 = process.env.GOOGLE_VISION_KEY || "";
-let GOOGLE_VISION_KEY = null;
-if (GOOGLE_VISION_ENABLED && GOOGLE_VISION_KEY_B64) {
-  try {
-    GOOGLE_VISION_KEY = JSON.parse(Buffer.from(GOOGLE_VISION_KEY_B64, "base64").toString("utf8"));
-  } catch (e) {
-    console.warn("Google Vision: invalid key format");
-  }
-}
+// --- OCR via PaddleOCR (free Python), Google Vision, or Ollama ---
+const USE_PADDLE_OCR = process.env.USE_PADDLE_OCR === "1" || process.env.USE_PADDLE === "1";
+const { spawn } = require("child_process");
 
 async function ocrImageGoogle(b64) {
   if (!GOOGLE_VISION_KEY) return null;
@@ -246,9 +238,9 @@ async function ocrImageGoogle(b64) {
 async function ocrImage(b64) {
   let result = null;
   
-  // Try Google Vision first (free cloud, fastest)
-  if (GOOGLE_VISION_ENABLED && GOOGLE_VISION_KEY) {
-    result = await ocrImageGoogle(b64);
+  // Try PaddleOCR first (free Python, fast)
+  if (USE_PADDLE_OCR) {
+    result = await ocrImagePaddle(b64);
     if (result) return result;
   }
   
@@ -259,6 +251,47 @@ async function ocrImage(b64) {
   }
   
   return null;
+}
+
+async function ocrImagePaddle(b64) {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => { resolve(null); }, 120000);
+    try {
+      const python = spawn("python3", ["-c", `
+import sys, base64, json
+sys.path.insert(0, '.')
+try:
+  from paddleocr import PaddleOCR
+  from PIL import Image
+  import io
+  ocr = PaddleOCR(use_angle_cls=True, lang='ch')
+  img_data = base64.b64decode(sys.argv[1])
+  img = Image.open(io.BytesIO(img_data))
+  result = ocr.ocr(img, cls=True)
+  text = '\\n'.join([line[0][1] for line in result if line])
+  print(text)
+except Exception as e:
+  print('', file=sys.stderr)
+  sys.exit(1)
+`, b64], { timeout: 120000, stdio: ["pipe", "pipe", "pipe"] });
+      
+      let output = "";
+      let error = "";
+      python.stdout.on("data", (data) => { output += data.toString(); });
+      python.stderr.on("data", (data) => { error += data.toString(); });
+      python.on("close", (code) => {
+        clearTimeout(timeout);
+        resolve(code === 0 && output.trim() ? output.trim() : null);
+      });
+      python.on("error", () => {
+        clearTimeout(timeout);
+        resolve(null);
+      });
+    } catch (e) {
+      clearTimeout(timeout);
+      resolve(null);
+    }
+  });
 }
 
 async function ocrImageOllama(b64) {
